@@ -11,10 +11,10 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/wyx2685/v2node/conf"
-	"github.com/wyx2685/v2node/core"
-	"github.com/wyx2685/v2node/limiter"
-	"github.com/wyx2685/v2node/node"
+	"github.com/caocaocc/v2node/conf"
+	"github.com/caocaocc/v2node/core"
+	"github.com/caocaocc/v2node/limiter"
+	"github.com/caocaocc/v2node/node"
 )
 
 var (

@@ -1,4 +1,4 @@
-module github.com/wyx2685/v2node
+module github.com/caocaocc/v2node
 
 go 1.25
 
