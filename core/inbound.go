@@ -193,9 +193,21 @@ func buildVLess(nodeInfo *panel.NodeInfo, inbound *coreConf.InboundDetourConfig)
 			return fmt.Errorf("vless decryption method %s is not support", nodeInfo.Common.Encryption)
 		}
 	}
-	s, err := json.Marshal(&coreConf.VLessInboundConfig{
+	sets := &coreConf.VLessInboundConfig{
 		Decryption: decryption,
-	})
+	}
+	if nodeInfo.Security == panel.Reality && v.Network == "tcp" && decryption == "none" {
+		dest, err := json.Marshal(80)
+		if err != nil {
+			return fmt.Errorf("marshal vless fallback dest error: %s", err)
+		}
+		sets.Fallbacks = []*coreConf.VLessInboundFallback{
+			{
+				Dest: dest,
+			},
+		}
+	}
+	s, err := json.Marshal(sets)
 	if err != nil {
 		return fmt.Errorf("marshal vless config error: %s", err)
 	}
