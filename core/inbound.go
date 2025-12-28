@@ -22,6 +22,32 @@ type NetworkSettingsProxyProtocol struct {
 	AcceptProxyProtocol bool `json:"acceptProxyProtocol"`
 }
 
+type inboundFallbackSpec struct {
+	Name string          `json:"name"`
+	Alpn string          `json:"alpn"`
+	Type string          `json:"type"`
+	Dest json.RawMessage `json:"dest"`
+	Xver uint64          `json:"xver"`
+}
+
+type inboundFallbackSettings struct {
+	Fallbacks []inboundFallbackSpec `json:"fallbacks"`
+}
+
+func parseInboundFallbacks(raw json.RawMessage) ([]inboundFallbackSpec, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	var settings inboundFallbackSettings
+	if err := json.Unmarshal(raw, &settings); err != nil {
+		return nil, err
+	}
+	if len(settings.Fallbacks) == 0 {
+		return nil, nil
+	}
+	return settings.Fallbacks, nil
+}
+
 func (v *V2Core) removeInbound(tag string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -193,9 +219,27 @@ func buildVLess(nodeInfo *panel.NodeInfo, inbound *coreConf.InboundDetourConfig)
 			return fmt.Errorf("vless decryption method %s is not support", nodeInfo.Common.Encryption)
 		}
 	}
-	s, err := json.Marshal(&coreConf.VLessInboundConfig{
+	settings := &coreConf.VLessInboundConfig{
 		Decryption: decryption,
-	})
+	}
+	fallbacks, err := parseInboundFallbacks(v.NetworkSettings)
+	if err != nil {
+		return fmt.Errorf("unmarshal fallback settings error: %s", err)
+	}
+	if len(fallbacks) > 0 {
+		settings.Fallbacks = make([]*coreConf.VLessInboundFallback, 0, len(fallbacks))
+		for _, fb := range fallbacks {
+			fb := fb
+			settings.Fallbacks = append(settings.Fallbacks, &coreConf.VLessInboundFallback{
+				Name: fb.Name,
+				Alpn: fb.Alpn,
+				Type: fb.Type,
+				Dest: fb.Dest,
+				Xver: fb.Xver,
+			})
+		}
+	}
+	s, err := json.Marshal(settings)
 	if err != nil {
 		return fmt.Errorf("marshal vless config error: %s", err)
 	}
