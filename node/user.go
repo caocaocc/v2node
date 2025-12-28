@@ -4,7 +4,7 @@ import (
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
-	panel "github.com/wyx2685/v2node/api/v2board"
+	panel "github.com/caocaocc/v2node/api/v2board"
 )
 
 func (c *Controller) reportUserTrafficTask() (err error) {
