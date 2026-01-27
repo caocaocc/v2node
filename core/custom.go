@@ -67,7 +67,7 @@ func GetCustomConfig(infos []*panel.NodeInfo) (*dns.Config, []*core.OutboundHand
 	coreOutboundConfig = append(coreOutboundConfig, dns)
 
 	//route
-	domainStrategy := "AsIs"
+	domainStrategy := "IPIfNonMatch"
 	dnsRule, _ := json.Marshal(map[string]interface{}{
 		"port":        "53",
 		"network":     "udp",
