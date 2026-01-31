@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -107,7 +108,7 @@ func buildInbound(nodeInfo *panel.NodeInfo, tag string) (*core.InboundHandlerCon
 	// Set SniffingConfig
 	sniffingConfig := &coreConf.SniffingConfig{
 		Enabled:      true,
-		DestOverride: &coreConf.StringList{"http", "tls"},
+		DestOverride: &coreConf.StringList{"http", "tls", "quic"},
 	}
 	in.SniffingConfig = sniffingConfig
 
@@ -193,9 +194,54 @@ func buildVLess(nodeInfo *panel.NodeInfo, inbound *coreConf.InboundDetourConfig)
 			return fmt.Errorf("vless decryption method %s is not support", nodeInfo.Common.Encryption)
 		}
 	}
-	s, err := json.Marshal(&coreConf.VLessInboundConfig{
+	inboundConfig := &coreConf.VLessInboundConfig{
 		Decryption: decryption,
-	})
+	}
+	if len(v.NetworkSettings) > 0 {
+		type fallbackJSON struct {
+			Name string          `json:"name"`
+			Alpn string          `json:"alpn"`
+			Path string          `json:"path"`
+			Type string          `json:"type"`
+			Dest json.RawMessage `json:"dest"`
+			Xver json.RawMessage `json:"xver"`
+		}
+		var ns struct {
+			Fallbacks []fallbackJSON `json:"fallbacks"`
+		}
+		if err := json.Unmarshal(v.NetworkSettings, &ns); err != nil {
+			return fmt.Errorf("unmarshal vless fallback settings error: %s", err)
+		}
+		if len(ns.Fallbacks) > 0 {
+			fallbacks := make([]*coreConf.VLessInboundFallback, 0, len(ns.Fallbacks))
+			for _, fb := range ns.Fallbacks {
+				var xver uint64
+				if len(fb.Xver) != 0 && string(fb.Xver) != "null" {
+					if err := json.Unmarshal(fb.Xver, &xver); err != nil {
+						var xverStr string
+						if err := json.Unmarshal(fb.Xver, &xverStr); err != nil {
+							return fmt.Errorf("unmarshal vless fallback xver error: %s", err)
+						}
+						parsed, err := strconv.ParseUint(strings.TrimSpace(xverStr), 10, 64)
+						if err != nil {
+							return fmt.Errorf("parse vless fallback xver error: %s", err)
+						}
+						xver = parsed
+					}
+				}
+				fallbacks = append(fallbacks, &coreConf.VLessInboundFallback{
+					Name: fb.Name,
+					Alpn: fb.Alpn,
+					Path: fb.Path,
+					Type: fb.Type,
+					Dest: fb.Dest,
+					Xver: xver,
+				})
+			}
+			inboundConfig.Fallbacks = fallbacks
+		}
+	}
+	s, err := json.Marshal(inboundConfig)
 	if err != nil {
 		return fmt.Errorf("marshal vless config error: %s", err)
 	}

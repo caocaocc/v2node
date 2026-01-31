@@ -67,7 +67,7 @@ func GetCustomConfig(infos []*panel.NodeInfo) (*dns.Config, []*core.OutboundHand
 	coreOutboundConfig = append(coreOutboundConfig, dns)
 
 	//route
-	domainStrategy := "AsIs"
+	domainStrategy := "IPIfNonMatch"
 	dnsRule, _ := json.Marshal(map[string]interface{}{
 		"port":        "53",
 		"network":     "udp",
@@ -142,6 +142,33 @@ func GetCustomConfig(infos []*panel.NodeInfo) (*dns.Config, []*core.OutboundHand
 					continue
 				}
 				coreRouterConfig.RuleList = append(coreRouterConfig.RuleList, rawRule)
+			case "route_user":
+				if route.ActionValue == nil {
+					continue
+				}
+				outbound := &coreConf.OutboundDetourConfig{}
+				err := json.Unmarshal([]byte(*route.ActionValue), outbound)
+				if err != nil {
+					continue
+				}
+				rule := map[string]interface{}{
+					"inboundTag":  info.Tag,
+					"user":        route.Match,
+					"outboundTag": outbound.Tag,
+				}
+				rawRule, err := json.Marshal(rule)
+				if err != nil {
+					continue
+				}
+				coreRouterConfig.RuleList = append(coreRouterConfig.RuleList, rawRule)
+				if hasOutboundWithTag(coreOutboundConfig, outbound.Tag) {
+					continue
+				}
+				custom_outbound, err := outbound.Build()
+				if err != nil {
+					continue
+				}
+				coreOutboundConfig = append(coreOutboundConfig, custom_outbound)
 			case "route":
 				if route.ActionValue == nil {
 					continue
