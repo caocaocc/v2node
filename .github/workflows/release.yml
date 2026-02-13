@@ -2,6 +2,14 @@ name: Build and Release
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch/tag/sha to build
+        required: false
+        default: master
+      version:
+        description: Version string to embed
+        required: false
   push:
     branches:
       - master
@@ -98,6 +106,8 @@ jobs:
     steps:
       - name: Checkout codebase
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
       - name: Show workflow information
         id: get_filename
         run: |
@@ -113,14 +123,18 @@ jobs:
       - name: Get project dependencies
         run: |
           go mod download
+      - name: Get manual version
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version != '' }}
+        run: |
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_ENV
       - name: Get release version
         if: ${{ github.event_name == 'release' }}
         run: |
           echo "version=$(echo $GITHUB_REF | cut -d / -f 3)" >> $GITHUB_ENV
       - name: Get other version
-        if: ${{ github.event_name != 'release' }}
+        if: ${{ env.version == '' }}
         run: |
-          echo "version=${{ github.sha }}" >> $GITHUB_ENV
+          echo "version=$(git rev-parse HEAD)" >> $GITHUB_ENV
       - name: Build v2node
         run: |
           echo "version: $version"
@@ -137,14 +151,26 @@ jobs:
         run: |
           cd ./build_assets || exit 1
           mv v2node v2node.exe
-      - name: Prepare to release
+      - name: Prepare to geoip release
         run: |
           cp ${GITHUB_WORKSPACE}/README.md ./build_assets/README.md
           cp ${GITHUB_WORKSPACE}/LICENSE ./build_assets/LICENSE
-          LIST=('geoip' 'geosite')
+          LIST=('geoip')
           for i in "${LIST[@]}"
           do
             DOWNLOAD_URL="https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/${i}.dat"
+            FILE_NAME="${i}.dat"
+            echo -e "Downloading ${DOWNLOAD_URL}..."
+            curl -L "${DOWNLOAD_URL}" -o ./build_assets/${FILE_NAME}
+          done
+      - name: Prepare to geosite release
+        run: |
+          cp ${GITHUB_WORKSPACE}/README.md ./build_assets/README.md
+          cp ${GITHUB_WORKSPACE}/LICENSE ./build_assets/LICENSE
+          LIST=('geosite')
+          for i in "${LIST[@]}"
+          do
+            DOWNLOAD_URL="https://github.com/caocaocc/domain-list-community/releases/latest/download/${i}.dat"
             FILE_NAME="${i}.dat"
             echo -e "Downloading ${DOWNLOAD_URL}..."
             curl -L "${DOWNLOAD_URL}" -o ./build_assets/${FILE_NAME}
@@ -169,6 +195,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: v2node-${{ steps.get_filename.outputs.ASSET_NAME }}
+          overwrite: true
           path: |
             ./v2node-${{ steps.get_filename.outputs.ASSET_NAME }}/*
       - name: Upload binaries to release
@@ -179,3 +206,4 @@ jobs:
           file: ./v2node-${{ steps.get_filename.outputs.ASSET_NAME }}.zip*
           tag: ${{ github.ref }}
           file_glob: true
+          overwrite: true
